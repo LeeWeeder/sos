@@ -22,6 +22,9 @@ const BOARD_PADDING = 20;
 // We use the full width available
 const MAX_BOARD_SIZE = SCREEN_WIDTH - BOARD_PADDING * 2;
 
+const POPUP_WIDTH = 130; 
+const POPUP_HEIGHT = 55;
+
 export const SOSBoard: React.FC<Props> = (props) => {
   const { 
     grid, pendingCell, onConfirmPlacement, 
@@ -100,12 +103,10 @@ export const SOSBoard: React.FC<Props> = (props) => {
     if (!pendingCell) return {};
     
     const { row, col } = pendingCell;
-    const popupWidth = cellSize * 2.5;
-    const popupHeight = cellSize * 1.1;
     
     // Default: Centered horizontally, positioned ABOVE the cell
-    let top = (row * cellSize) - popupHeight - 8;
-    let left = (col * cellSize) + (cellSize / 2) - (popupWidth / 2);
+    let top = (row * cellSize) - POPUP_HEIGHT - 8;
+    let left = (col * cellSize) + (cellSize / 2) - (POPUP_WIDTH / 2);
 
     // Check Top Edge (If row is 0 or 1, put it BELOW)
     if (row < 1) {
@@ -118,11 +119,11 @@ export const SOSBoard: React.FC<Props> = (props) => {
     }
 
     // Check Right Edge
-    if (left + popupWidth > totalBoardSize) {
-      left = totalBoardSize - popupWidth; // Stick to right edge
+    if (left + POPUP_WIDTH > totalBoardSize) {
+      left = totalBoardSize - POPUP_WIDTH; // Stick to right edge
     }
 
-    return { top, left, width: popupWidth, height: popupHeight };
+    return { top, left, width: POPUP_WIDTH, height: POPUP_HEIGHT };
   };
 
   return (
