@@ -1,5 +1,7 @@
+import { Colors } from '@/constants/Color';
+import { Feather, Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import React from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { SOSBoard } from '../components/SOSBoard';
 import { useSOSGame } from '../hooks/useSOSGame';
@@ -10,41 +12,56 @@ export default function SOSGameScreen() {
   // --- SETUP VIEW ---
   if (game.phase === 'SETUP') {
     return (
-      <SafeAreaView style={styles.centerContainer}>
-        <Text style={styles.title}>SOS GAME</Text>
+      <SafeAreaView style={styles.setupContainer}>
+        <StatusBar barStyle="dark-content" />
+        <View style={styles.logoContainer}>
+          <Text style={styles.logoTextS}>S</Text>
+          <Text style={styles.logoTextO}>O</Text>
+          <Text style={styles.logoTextS}>S</Text>
+        </View>
         
-        <View style={styles.optionGroup}>
-          <Text style={styles.label}>Grid Size: {game.gridSize}x{game.gridSize}</Text>
-          <View style={styles.row}>
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <MaterialCommunityIcons name="grid" size={24} color={Colors.text} />
+            <Text style={styles.cardTitle}>Grid Size</Text>
+          </View>
+          <View style={styles.selectionRow}>
             {[7, 8, 9].map((size) => (
               <TouchableOpacity 
                 key={size} 
-                style={[styles.btn, game.gridSize === size && styles.btnActive]}
+                style={[styles.selectBtn, game.gridSize === size && styles.selectBtnActive]}
                 onPress={() => game.setGridSize(size as any)}
               >
-                <Text style={[styles.btnText, game.gridSize === size && styles.btnTextActive]}>{size}x{size}</Text>
+                <Text style={[styles.selectText, game.gridSize === size && styles.selectTextActive]}>
+                  {size}x{size}
+                </Text>
               </TouchableOpacity>
             ))}
           </View>
         </View>
 
-        <View style={styles.optionGroup}>
-          <Text style={styles.label}>Players: {game.playerCount}</Text>
-          <View style={styles.row}>
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <Ionicons name="people" size={24} color={Colors.text} />
+            <Text style={styles.cardTitle}>Players</Text>
+          </View>
+          <View style={styles.selectionRow}>
             {[2, 3, 4].map((count) => (
               <TouchableOpacity 
                 key={count} 
-                style={[styles.btn, game.playerCount === count && styles.btnActive]}
+                style={[styles.selectBtn, game.playerCount === count && styles.selectBtnActive]}
                 onPress={() => game.setPlayerCount(count)}
               >
-                <Text style={[styles.btnText, game.playerCount === count && styles.btnTextActive]}>{count}</Text>
+                <Text style={[styles.selectText, game.playerCount === count && styles.selectTextActive]}>
+                  {count}
+                </Text>
               </TouchableOpacity>
             ))}
           </View>
         </View>
 
-        <TouchableOpacity style={styles.startBtn} onPress={game.startGame}>
-          <Text style={styles.startBtnText}>START GAME</Text>
+        <TouchableOpacity style={styles.playBtn} onPress={game.startGame}>
+          <Ionicons name="play" size={32} color="#fff" />
         </TouchableOpacity>
       </SafeAreaView>
     );
@@ -58,21 +75,27 @@ export default function SOSGameScreen() {
 
     return (
       <SafeAreaView style={styles.centerContainer}>
-        <Text style={styles.title}>GAME OVER</Text>
+        <MaterialCommunityIcons name="trophy" size={80} color={Colors.warning} style={{marginBottom: 20}} />
+        
         {isDraw ? (
           <Text style={styles.winnerText}>Draw!</Text>
         ) : (
           <Text style={[styles.winnerText, { color: winner.color }]}>{winner.name} Wins!</Text>
         )}
         
-        <View style={styles.scoreList}>
-          {sortedPlayers.map(p => (
-            <Text key={p.id} style={styles.scoreItem}>{p.name}: {p.score} pts</Text>
+        <View style={styles.resultsCard}>
+          {sortedPlayers.map((p, index) => (
+            <View key={p.id} style={styles.resultRow}>
+              <View style={styles.rankBadge}><Text style={styles.rankText}>{index + 1}</Text></View>
+              <Text style={[styles.resultName, { color: p.color }]}>{p.name}</Text>
+              <Text style={styles.resultScore}>{p.score}</Text>
+            </View>
           ))}
         </View>
 
-        <TouchableOpacity style={styles.startBtn} onPress={game.resetGame}>
-          <Text style={styles.startBtnText}>PLAY AGAIN</Text>
+        <TouchableOpacity style={styles.resetBtn} onPress={game.resetGame}>
+          <Ionicons name="refresh" size={28} color="#fff" />
+          <Text style={styles.resetText}>Play Again</Text>
         </TouchableOpacity>
       </SafeAreaView>
     );
@@ -81,101 +104,121 @@ export default function SOSGameScreen() {
   // --- ACTIVE GAME VIEW ---
   return (
     <SafeAreaView style={styles.container}>
-      {/* Scoreboard */}
-      <View style={styles.header}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          {game.players.map((p) => (
-            <View key={p.id} style={[
-              styles.playerBadge, 
-              game.currentPlayer.id === p.id && styles.activePlayerBadge,
-              { borderColor: p.color }
-            ]}>
-              <Text style={{ fontWeight: 'bold', color: p.color }}>{p.name}</Text>
-              <Text>{p.score}</Text>
+      <StatusBar barStyle="dark-content" />
+      
+      {/* Top Bar: Players */}
+      <View style={styles.topBar}>
+        {game.players.map((p) => {
+          const isActive = game.currentPlayer.id === p.id;
+          return (
+            <View key={p.id} style={[styles.playerPill, isActive && styles.playerPillActive]}>
+              <View style={[styles.avatar, { backgroundColor: p.color }]}>
+                <Text style={styles.avatarText}>{p.name.charAt(1)}</Text>
+              </View>
+              <Text style={styles.scoreText}>{p.score}</Text>
             </View>
-          ))}
-        </ScrollView>
+          );
+        })}
       </View>
 
-      <View style={styles.infoBar}>
-        <Text style={styles.infoText}>
-          Turn: <Text style={{color: game.currentPlayer.color, fontWeight: 'bold'}}>{game.currentPlayer.name}</Text>
-        </Text>
-        <Text style={styles.phaseText}>
-          {game.phase === 'PLACEMENT' 
-            ? "Tap a cell to place letter" 
-            : "Swipe across S-O-S to slash!"}
-        </Text>
+      {/* Status Indicator */}
+      <View style={styles.statusContainer}>
+        {game.canPlaceBonus ? (
+          <View style={[styles.statusPill, { backgroundColor: Colors.warning }]}>
+            <MaterialCommunityIcons name="star" size={16} color="#fff" />
+            <Text style={styles.statusText}>BONUS MOVE</Text>
+          </View>
+        ) : game.phase === 'PLACEMENT' ? (
+          <View style={[styles.statusPill, { backgroundColor: Colors.textLight }]}>
+            <MaterialCommunityIcons name="gesture-tap" size={16} color="#fff" />
+          </View>
+        ) : (
+          <View style={[styles.statusPill, { backgroundColor: Colors.success }]}>
+            <MaterialCommunityIcons name="gesture-swipe" size={16} color="#fff" />
+          </View>
+        )}
       </View>
 
-      {/* Board */}
-      <SOSBoard 
-        grid={game.grid}
-        onCellTap={game.handleCellTap}
-        
-        pendingCell={game.pendingCell}
-        onConfirmPlacement={game.confirmPlacement}
-        onDismiss={game.dismissPopup}
+      {/* The Board */}
+      <View style={styles.boardWrapper}>
+        <SOSBoard 
+          grid={game.grid}
+          onCellTap={game.handleCellTap}
+          pendingCell={game.pendingCell}
+          onConfirmPlacement={game.confirmPlacement}
+          onDismiss={game.dismissPopup}
+          dragPath={game.dragPath}
+          onDragEnter={game.handleDragEnter}
+          onDragEnd={game.handleDragEnd}
+          slashedLines={game.slashedLines}
+        />
+      </View>
 
-        dragPath={game.dragPath}
-        onDragEnter={game.handleDragEnter}
-        onDragEnd={game.handleDragEnd}
-
-        slashedLines={game.slashedLines}
-      />
-
-      <View style={styles.controls}>
+      {/* Bottom Controls */}
+      <View style={styles.bottomBar}>
         {game.phase === 'CLAIMING' && (
           <TouchableOpacity 
-            style={[styles.actionBtn, { backgroundColor: '#e74c3c' }]}
+            style={styles.endTurnFab}
             onPress={game.endTurn}
+            activeOpacity={0.8}
           >
-            <Text style={styles.actionBtnText}>END TURN</Text>
+            <Feather name="check" size={32} color="#fff" />
           </TouchableOpacity>
         )}
       </View>
-      
-      {game.phase === 'CLAIMING' && (
-        <Text style={styles.hintText}>Swipe your finger over S-O-S to score!</Text>
-      )}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f6fa' },
-  centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f5f6fa' },
-  title: { fontSize: 32, fontWeight: 'bold', marginBottom: 40, color: '#2c3e50' },
+  container: { flex: 1, backgroundColor: Colors.background },
+  centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.background },
+  setupContainer: { flex: 1, justifyContent: 'center', padding: 30, backgroundColor: Colors.background },
   
-  // Setup
-  optionGroup: { marginBottom: 30, alignItems: 'center' },
-  label: { fontSize: 18, marginBottom: 10, color: '#34495e' },
-  row: { flexDirection: 'row', gap: 10 },
-  btn: { paddingVertical: 10, paddingHorizontal: 20, backgroundColor: '#ecf0f1', borderRadius: 8 },
-  btnActive: { backgroundColor: '#3498db' },
-  btnText: { fontSize: 16, color: '#2c3e50' },
-  btnTextActive: { color: '#fff', fontWeight: 'bold' },
-  startBtn: { backgroundColor: '#2c3e50', paddingVertical: 15, paddingHorizontal: 40, borderRadius: 25, marginTop: 20 },
-  startBtnText: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
+  // Setup Styles
+  logoContainer: { flexDirection: 'row', justifyContent: 'center', marginBottom: 50, gap: 5 },
+  logoTextS: { fontSize: 60, fontWeight: '900', color: Colors.primaryS },
+  logoTextO: { fontSize: 60, fontWeight: '900', color: Colors.primaryO },
+  
+  card: { backgroundColor: '#fff', borderRadius: 20, padding: 20, marginBottom: 20, ...Colors.shadow },
+  cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 15, gap: 10 },
+  cardTitle: { fontSize: 18, fontWeight: 'bold', color: Colors.text },
+  selectionRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 10 },
+  selectBtn: { flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: Colors.background, alignItems: 'center' },
+  selectBtnActive: { backgroundColor: Colors.primaryS },
+  selectText: { fontSize: 16, fontWeight: 'bold', color: Colors.textLight },
+  selectTextActive: { color: '#fff' },
+  
+  playBtn: { alignSelf: 'center', backgroundColor: Colors.success, width: 80, height: 80, borderRadius: 40, justifyContent: 'center', alignItems: 'center', marginTop: 20, ...Colors.shadow },
 
-  // Game
-  header: { padding: 10, backgroundColor: '#fff', elevation: 2 },
-  playerBadge: { 
-    padding: 10, marginHorizontal: 5, borderWidth: 2, borderRadius: 10, 
-    alignItems: 'center', minWidth: 70, backgroundColor: '#fff' 
-  },
-  activePlayerBadge: { backgroundColor: '#ecf0f1' },
-  infoBar: { alignItems: 'center', marginTop: 10 },
-  infoText: { fontSize: 18 },
-  phaseText: { fontSize: 14, color: '#7f8c8d', marginTop: 4 },
-  
-  controls: { padding: 20, alignItems: 'center' },
-  actionBtn: { paddingVertical: 15, paddingHorizontal: 40, borderRadius: 25, elevation: 3 },
-  actionBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
-  hintText: { textAlign: 'center', color: '#7f8c8d', marginBottom: 20 },
+  // Game Header
+  topBar: { flexDirection: 'row', justifyContent: 'center', paddingTop: 20, gap: 15 },
+  playerPill: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', padding: 6, paddingRight: 15, borderRadius: 30, opacity: 0.5 },
+  playerPillActive: { opacity: 1, transform: [{scale: 1.1}], ...Colors.shadow },
+  avatar: { width: 30, height: 30, borderRadius: 15, justifyContent: 'center', alignItems: 'center', marginRight: 8 },
+  avatarText: { color: '#fff', fontWeight: 'bold' },
+  scoreText: { fontWeight: '900', fontSize: 16, color: Colors.text },
+
+  // Status
+  statusContainer: { alignItems: 'center', marginTop: 20, height: 30 },
+  statusPill: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, gap: 6 },
+  statusText: { color: '#fff', fontWeight: 'bold', fontSize: 12 },
+
+  // Board
+  boardWrapper: { flex: 1, justifyContent: 'center' },
+
+  // Bottom Controls
+  bottomBar: { height: 100, justifyContent: 'center', alignItems: 'center' },
+  endTurnFab: { width: 70, height: 70, borderRadius: 35, backgroundColor: Colors.primaryS, justifyContent: 'center', alignItems: 'center', ...Colors.shadow },
 
   // Game Over
-  winnerText: { fontSize: 24, fontWeight: 'bold', marginBottom: 20 },
-  scoreList: { marginBottom: 30 },
-  scoreItem: { fontSize: 18, marginBottom: 5 },
+  winnerText: { fontSize: 32, fontWeight: '900', color: Colors.text, marginBottom: 30 },
+  resultsCard: { backgroundColor: '#fff', width: '80%', borderRadius: 20, padding: 20, ...Colors.shadow, marginBottom: 30 },
+  resultRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 15, justifyContent: 'space-between' },
+  rankBadge: { width: 24, height: 24, borderRadius: 12, backgroundColor: Colors.background, justifyContent: 'center', alignItems: 'center', marginRight: 10 },
+  rankText: { fontWeight: 'bold', fontSize: 12, color: Colors.textLight },
+  resultName: { fontSize: 18, fontWeight: 'bold', flex: 1 },
+  resultScore: { fontSize: 20, fontWeight: '900', color: Colors.text },
+  resetBtn: { flexDirection: 'row', backgroundColor: Colors.primaryS, paddingVertical: 15, paddingHorizontal: 30, borderRadius: 30, alignItems: 'center', gap: 10 },
+  resetText: { color: '#fff', fontWeight: 'bold', fontSize: 16 }
 });

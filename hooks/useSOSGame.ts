@@ -4,7 +4,7 @@ import { CellValue, Coordinate, GamePhase, GridSize, Player, SlashedLine } from 
 const PLAYER_COLORS = ['#FF5733', '#33FF57', '#3357FF', '#F333FF'];
 
 export const useSOSGame = () => {
-  // ... (Keep existing state setup) ...
+  // --- Setup & Grid State ---
   const [gridSize, setGridSize] = useState<GridSize>(7);
   const [playerCount, setPlayerCount] = useState<number>(2);
   const [phase, setPhase] = useState<GamePhase>('SETUP');
@@ -13,11 +13,15 @@ export const useSOSGame = () => {
   const [currentPlayerIndex, setCurrentPlayerIndex] = useState(0);
   const [slashedLines, setSlashedLines] = useState<SlashedLine[]>([]);
   
+  // --- Interaction State ---
   const [pendingCell, setPendingCell] = useState<Coordinate | null>(null);
   const [dragPath, setDragPath] = useState<Coordinate[]>([]);
-  const [hasPlacedThisTurn, setHasPlacedThisTurn] = useState(false);
+  
+  // Tracks if the player has placed a letter to start the turn
+  const [hasPlacedInitial, setHasPlacedInitial] = useState(false);
+  // Tracks if the player earned a bonus move by slashing
+  const [canPlaceBonus, setCanPlaceBonus] = useState(false);
 
-  // ... (Keep startGame, handleCellTap, confirmPlacement) ...
   const startGame = () => {
     const newGrid = Array(gridSize).fill(null).map(() => Array(gridSize).fill(null));
     setGrid(newGrid);
@@ -27,18 +31,27 @@ export const useSOSGame = () => {
     setPlayers(newPlayers);
     setSlashedLines([]);
     setCurrentPlayerIndex(0);
-    setHasPlacedThisTurn(false);
+    
+    setHasPlacedInitial(false);
+    setCanPlaceBonus(false);
     setPendingCell(null);
     setDragPath([]);
     setPhase('PLACEMENT');
   };
 
+  // 1. Handle Tapping a Cell (Placement Logic)
   const handleCellTap = (row: number, col: number) => {
-    if (phase === 'PLACEMENT') {
+    // Allow placement if:
+    // A. It's the start of the turn (PLACEMENT phase)
+    // B. We are in CLAIMING phase, but user earned a bonus move (canPlaceBonus)
+    const isPlacementAllowed = phase === 'PLACEMENT' || (phase === 'CLAIMING' && canPlaceBonus);
+
+    if (isPlacementAllowed) {
       if (grid[row][col] !== null) {
-        setPendingCell(null);
+        setPendingCell(null); // Dismiss if tapping occupied cell
         return;
       }
+      // Toggle popup
       if (pendingCell?.row === row && pendingCell?.col === col) {
         setPendingCell(null);
       } else {
@@ -47,118 +60,116 @@ export const useSOSGame = () => {
     }
   };
 
+  // 2. Confirm Selection from Popup
   const confirmPlacement = (char: 'S' | 'O') => {
     if (!pendingCell) return;
     const { row, col } = pendingCell;
+    
     const newGrid = grid.map(r => [...r]);
     newGrid[row][col] = char;
     setGrid(newGrid);
+    
     setPendingCell(null);
-    setHasPlacedThisTurn(true);
-    setPhase('CLAIMING');
+    
+    // Logic for turn progression
+    if (phase === 'PLACEMENT') {
+      setHasPlacedInitial(true);
+      setPhase('CLAIMING'); // Move to slashing phase
+    } else if (canPlaceBonus) {
+      // They used their bonus move!
+      setCanPlaceBonus(false); 
+      // We stay in CLAIMING phase so they can slash again if this new letter created a line
+    }
   };
 
+  // 3. Handle Dragging (The "Fruit Ninja" Logic)
   const handleDragEnter = (row: number, col: number) => {
     if (phase !== 'CLAIMING') return;
 
+    // We use a temporary variable to calculate the next state
+    // so we can validate immediately without waiting for React render cycle
+    let nextPath: Coordinate[] = [];
+
     setDragPath((prev) => {
-      // 1. Start of drag
+      // --- Pivot & Vector Logic (Same as before) ---
       if (prev.length === 0) {
-        return [{ row, col }];
+        nextPath = [{ row, col }];
+        return nextPath;
       }
 
       const start = prev[0];
       const last = prev[prev.length - 1];
 
-      // 2. Ignore hovering the same cell
-      if (last.row === row && last.col === col) {
-        return prev;
-      }
+      // Ignore same cell
+      if (last.row === row && last.col === col) return prev;
 
-      // 3. Backtracking (User slides back)
-      // If we go back to the 2nd-to-last cell, remove the last one.
+      // Backtracking
       if (prev.length > 1) {
         const secondLast = prev[prev.length - 2];
         if (secondLast.row === row && secondLast.col === col) {
-          return prev.slice(0, -1);
+          nextPath = prev.slice(0, -1);
+          return nextPath;
         }
       }
 
-      // 4. Establishing Direction (1st -> 2nd cell)
+      // 2nd Cell (Direction)
       if (prev.length === 1) {
-        // Check adjacency (including diagonal)
         if (Math.abs(row - start.row) <= 1 && Math.abs(col - start.col) <= 1) {
-          return [...prev, { row, col }];
+          nextPath = [...prev, { row, col }];
+          return nextPath;
         }
         return prev;
       }
 
-      // 5. Completing the Line (2nd -> 3rd cell) OR Pivoting
+      // 3rd Cell (Completion or Pivot)
       if (prev.length === 2) {
         const mid = prev[1];
-        
-        // Calculate the vector established by Start -> Mid
         const vRow = mid.row - start.row;
         const vCol = mid.col - start.col;
-
-        // Calculate the STRICT expected 3rd cell
         const expectedRow = mid.row + vRow;
         const expectedCol = mid.col + vCol;
 
-        // Case A: Perfect Line (The user hit the exact target)
+        // Perfect Line
         if (row === expectedRow && col === expectedCol) {
-          return [...prev, { row, col }];
+          nextPath = [...prev, { row, col }];
+          
+          // --- INSTANT VALIDATION TRIGGER ---
+          // We don't wait for drag end. We check NOW.
+          // We return the full path for a split second visual, 
+          // but we trigger the logic immediately.
+          validateSlash(nextPath); 
+          return []; // Reset path immediately after slash
         }
 
-        // Case B: The "Pivot" (Fixing the Diagonal Issue)
-        // The user is at Start -> Mid, but drags to 'New'.
-        // If 'New' is NOT the line extension, but IS adjacent to 'Start',
-        // we assume 'Mid' was a mistake/slip, and we switch direction.
+        // Pivot (Fix Diagonal)
         if (Math.abs(row - start.row) <= 1 && Math.abs(col - start.col) <= 1) {
-          // Replace the middle cell with this new one
-          return [start, { row, col }];
+          nextPath = [start, { row, col }];
+          return nextPath;
         }
-
-        // Case C: Invalid L-Shape (Not a line, and not adjacent to start)
-        return prev;
       }
 
-      // 6. Path Full (3 cells)
-      // We don't add more. User must backtrack if they want to change.
       return prev;
     });
   };
 
   const handleDragEnd = () => {
-    if (phase !== 'CLAIMING') return;
-    
-    // Only validate if we successfully selected 3 aligned cells
-    if (dragPath.length === 3) {
-      validateSlash(dragPath);
-    }
+    // Since we validate instantly in handleDragEnter, 
+    // this is mostly just cleanup for incomplete drags.
     setDragPath([]);
   };
 
   const validateSlash = (path: Coordinate[]) => {
-    // We don't need to check geometry here anymore! 
-    // handleDragEnter guaranteed it is a straight line.
-    
-    // We just sort to ensure we read S-O-S correctly (Start -> End)
     const sorted = [...path].sort((a, b) => (a.row - b.row) || (a.col - b.col));
     const [c1, c2, c3] = sorted;
 
-    // 1. Check Content (Must be S-O-S)
-    if (grid[c1.row][c1.col] !== 'S' || grid[c2.row][c2.col] !== 'O' || grid[c3.row][c3.col] !== 'S') {
-      return; 
-    }
+    // 1. Check Content
+    if (grid[c1.row][c1.col] !== 'S' || grid[c2.row][c2.col] !== 'O' || grid[c3.row][c3.col] !== 'S') return;
 
     // 2. Check Duplicates
     const lineId = `${c1.row},${c1.col}-${c3.row},${c3.col}`;
-    if (slashedLines.some(line => line.id === lineId)) {
-      return; 
-    }
+    if (slashedLines.some(line => line.id === lineId)) return;
 
-    // 3. Success
+    // --- SUCCESS ---
     const updatedPlayers = [...players];
     updatedPlayers[currentPlayerIndex].score += 1;
     setPlayers(updatedPlayers);
@@ -170,22 +181,26 @@ export const useSOSGame = () => {
       color: players[currentPlayerIndex].color
     }]);
 
+    // REWARD: Unlock ONE bonus placement
+    // We set this to true. Even if they slash 5 times, it stays true (1 move).
+    // It only resets to false when they actually place the letter.
+    setCanPlaceBonus(true);
+
+    // Check Game Over
     const isFull = grid.every(row => row.every(cell => cell !== null));
-    if (isFull) {
-      setPhase('GAME_OVER');
-    } else {
-      // Reward: Place again
-      setHasPlacedThisTurn(false);
-      setPhase('PLACEMENT');
-    }
+    if (isFull) setPhase('GAME_OVER');
   };
 
   const endTurn = () => {
-    if (!hasPlacedThisTurn) {
+    if (!hasPlacedInitial) {
       alert("Place a letter first!");
       return;
     }
     
+    // If they have a bonus move available but choose to end turn, that's their choice.
+    // Or we could force them? "You have a free move!"
+    // Let's just end the turn to keep it simple.
+
     const isFull = grid.every(row => row.every(cell => cell !== null));
     if (isFull) {
       setPhase('GAME_OVER');
@@ -194,7 +209,8 @@ export const useSOSGame = () => {
 
     setPendingCell(null);
     setDragPath([]);
-    setHasPlacedThisTurn(false);
+    setHasPlacedInitial(false);
+    setCanPlaceBonus(false);
     setPhase('PLACEMENT');
     setCurrentPlayerIndex((prev) => (prev + 1) % playerCount);
   };
@@ -209,6 +225,8 @@ export const useSOSGame = () => {
     dragPath, handleDragEnter, handleDragEnd,
     startGame, handleCellTap, endTurn,
     resetGame: () => setPhase('SETUP'),
-    dismissPopup: () => setPendingCell(null)
+    dismissPopup: () => setPendingCell(null),
+    // Export this so UI can show a hint
+    canPlaceBonus 
   };
 };

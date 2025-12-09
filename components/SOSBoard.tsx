@@ -1,3 +1,4 @@
+import { Colors } from '@/constants/Color';
 import React, { useEffect, useRef } from 'react';
 import { Dimensions, PanResponder, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Svg, { Line } from 'react-native-svg';
@@ -7,19 +8,18 @@ import { SOSCell } from './SOSCell';
 interface Props {
   grid: CellValue[][];
   onCellTap: (row: number, col: number) => void;
-  
   pendingCell: Coordinate | null;
   onConfirmPlacement: (char: 'S' | 'O') => void;
-  
+  onDismiss: () => void;
   dragPath: Coordinate[];
   onDragEnter: (row: number, col: number) => void;
   onDragEnd: () => void;
-  
   slashedLines: SlashedLine[];
 }
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const BOARD_PADDING = 20;
+// We use the full width available
 const MAX_BOARD_SIZE = SCREEN_WIDTH - BOARD_PADDING * 2;
 
 export const SOSBoard: React.FC<Props> = (props) => {
@@ -29,17 +29,17 @@ export const SOSBoard: React.FC<Props> = (props) => {
   } = props;
 
   const gridSize = grid.length;
-  const cellSize = (MAX_BOARD_SIZE / gridSize) - 2;
-  const totalBoardSize = gridSize * (cellSize + 2);
+  // Exact division. No margins in the math.
+  const cellSize = MAX_BOARD_SIZE / gridSize; 
+  const totalBoardSize = cellSize * gridSize;
 
-  // --- FIX: Keep track of latest props in a Ref ---
+  // --- Refs & Callbacks (Keep existing logic) ---
   const callbacksRef = useRef({
     onDragEnter: props.onDragEnter,
     onDragEnd: props.onDragEnd,
     onCellTap: props.onCellTap
   });
 
-  // Update the ref whenever props change
   useEffect(() => {
     callbacksRef.current = {
       onDragEnter: props.onDragEnter,
@@ -48,9 +48,10 @@ export const SOSBoard: React.FC<Props> = (props) => {
     };
   });
 
+  // --- Coordinate Math (Simplified) ---
   const getGridCoords = (x: number, y: number) => {
-    const col = Math.floor(x / (cellSize + 2));
-    const row = Math.floor(y / (cellSize + 2));
+    const col = Math.floor(x / cellSize);
+    const row = Math.floor(y / cellSize);
     if (row >= 0 && row < gridSize && col >= 0 && col < gridSize) {
       return { row, col };
     }
@@ -68,23 +69,17 @@ export const SOSBoard: React.FC<Props> = (props) => {
       onPanResponderGrant: (evt) => {
         const { locationX, locationY } = evt.nativeEvent;
         const coords = getGridCoords(locationX, locationY);
-        if (coords) {
-          // Call the LATEST function from ref
-          callbacksRef.current.onDragEnter(coords.row, coords.col);
-        }
+        if (coords) callbacksRef.current.onDragEnter(coords.row, coords.col);
       },
 
       onPanResponderMove: (evt) => {
         const { locationX, locationY } = evt.nativeEvent;
         const coords = getGridCoords(locationX, locationY);
-        if (coords) {
-          callbacksRef.current.onDragEnter(coords.row, coords.col);
-        }
+        if (coords) callbacksRef.current.onDragEnter(coords.row, coords.col);
       },
 
       onPanResponderRelease: (evt, gestureState) => {
         const isTap = Math.abs(gestureState.dx) < 5 && Math.abs(gestureState.dy) < 5;
-
         if (isTap) {
           const { locationX, locationY } = evt.nativeEvent;
           const coords = getGridCoords(locationX, locationY);
@@ -99,8 +94,39 @@ export const SOSBoard: React.FC<Props> = (props) => {
     })
   ).current;
 
-  const getCenter = (idx: number) => (idx * (cellSize + 2)) + (cellSize / 2) + 1;
+  // Center is exactly half the cell size + offset
+  const getCenter = (idx: number) => (idx * cellSize) + (cellSize / 2);
   const isDragged = (r: number, c: number) => dragPath.some(p => p.row === r && p.col === c);
+
+  // --- Smart Popup Positioning ---
+  const getPopupStyle = () => {
+    if (!pendingCell) return {};
+    
+    const { row, col } = pendingCell;
+    const popupWidth = cellSize * 2.5;
+    const popupHeight = cellSize * 1.1;
+    
+    // Default: Centered horizontally, positioned ABOVE the cell
+    let top = (row * cellSize) - popupHeight - 8;
+    let left = (col * cellSize) + (cellSize / 2) - (popupWidth / 2);
+
+    // 1. Check Top Edge (If row is 0 or 1, put it BELOW)
+    if (row < 1) {
+      top = (row * cellSize) + cellSize + 8;
+    }
+
+    // 2. Check Left Edge
+    if (left < 0) {
+      left = 0; // Stick to left edge
+    }
+
+    // 3. Check Right Edge
+    if (left + popupWidth > totalBoardSize) {
+      left = totalBoardSize - popupWidth; // Stick to right edge
+    }
+
+    return { top, left, width: popupWidth, height: popupHeight };
+  };
 
   return (
     <View style={styles.container}>
@@ -115,6 +141,7 @@ export const SOSBoard: React.FC<Props> = (props) => {
                 value={cell}
                 size={cellSize}
                 isSelected={isDragged(rIndex, cIndex)}
+                isPending={pendingCell?.row === rIndex && pendingCell?.col === cIndex}
               />
             ))}
           </View>
@@ -131,9 +158,9 @@ export const SOSBoard: React.FC<Props> = (props) => {
                 x2={getCenter(line.end.col)}
                 y2={getCenter(line.end.row)}
                 stroke={line.color}
-                strokeWidth="4"
+                strokeWidth="6"
                 strokeLinecap="round"
-                opacity={0.8}
+                opacity={0.7}
               />
             ))}
             {dragPath.length > 0 && (
@@ -148,10 +175,10 @@ export const SOSBoard: React.FC<Props> = (props) => {
                       y1={getCenter(prev.row)}
                       x2={getCenter(point.col)}
                       y2={getCenter(point.row)}
-                      stroke="#e74c3c"
+                      stroke={Colors.primaryO}
                       strokeWidth="6"
                       strokeDasharray="10, 5"
-                      opacity={0.6}
+                      opacity={0.5}
                     />
                   );
                 })}
@@ -168,20 +195,13 @@ export const SOSBoard: React.FC<Props> = (props) => {
 
         {/* 4. Popup Layer */}
         {pendingCell && (
-          <View 
-            style={[
-              styles.popupContainer,
-              {
-                width: cellSize * 2.5,
-                height: cellSize,
-                top: (pendingCell.row * (cellSize + 2)),
-                left: (pendingCell.col * (cellSize + 2)) - (cellSize * 0.75),
-              }
-            ]}
-          >
+          <View style={[styles.popupContainer, getPopupStyle()]}>
             <TouchableOpacity onPress={() => onConfirmPlacement('S')} style={[styles.bubble, styles.bubbleS]}>
               <Text style={styles.bubbleText}>S</Text>
             </TouchableOpacity>
+            
+            <View style={styles.divider} />
+            
             <TouchableOpacity onPress={() => onConfirmPlacement('O')} style={[styles.bubble, styles.bubbleO]}>
               <Text style={styles.bubbleText}>O</Text>
             </TouchableOpacity>
@@ -201,25 +221,25 @@ const styles = StyleSheet.create({
   popupContainer: {
     position: 'absolute',
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'space-evenly',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.95)',
-    borderRadius: 50,
-    padding: 5,
-    elevation: 20, // Increased elevation
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    backgroundColor: '#2C3E50', // Dark background
+    borderRadius: 50, // Pill shape
+    paddingHorizontal: 10,
+    // Modern Shadow
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
-    shadowRadius: 4,
+    shadowRadius: 5,
+    elevation: 10,
     zIndex: 999, 
   },
   bubble: {
-    width: 40, height: 40, borderRadius: 20,
+    width: 40, height: 40,
     justifyContent: 'center', alignItems: 'center',
-    marginHorizontal: 5,
-    borderWidth: 2, borderColor: '#fff'
   },
-  bubbleS: { backgroundColor: '#2c3e50' },
-  bubbleO: { backgroundColor: '#e74c3c' },
-  bubbleText: { color: '#fff', fontWeight: 'bold', fontSize: 18 }
+  bubbleS: {},
+  bubbleO: {},
+  bubbleText: { color: '#fff', fontWeight: '900', fontSize: 22 },
+  divider: { width: 1, height: '50%', backgroundColor: 'rgba(255,255,255,0.2)', marginHorizontal: 5 },
 });
