@@ -29,11 +29,9 @@ export const SOSBoard: React.FC<Props> = (props) => {
   } = props;
 
   const gridSize = grid.length;
-  // Exact division. No margins in the math.
   const cellSize = MAX_BOARD_SIZE / gridSize; 
   const totalBoardSize = cellSize * gridSize;
 
-  // --- Refs & Callbacks (Keep existing logic) ---
   const callbacksRef = useRef({
     onDragEnter: props.onDragEnter,
     onDragEnd: props.onDragEnd,
@@ -48,7 +46,6 @@ export const SOSBoard: React.FC<Props> = (props) => {
     };
   });
 
-  // --- Coordinate Math (Simplified) ---
   const getGridCoords = (x: number, y: number) => {
     const col = Math.floor(x / cellSize);
     const row = Math.floor(y / cellSize);
@@ -110,17 +107,17 @@ export const SOSBoard: React.FC<Props> = (props) => {
     let top = (row * cellSize) - popupHeight - 8;
     let left = (col * cellSize) + (cellSize / 2) - (popupWidth / 2);
 
-    // 1. Check Top Edge (If row is 0 or 1, put it BELOW)
+    // Check Top Edge (If row is 0 or 1, put it BELOW)
     if (row < 1) {
       top = (row * cellSize) + cellSize + 8;
     }
 
-    // 2. Check Left Edge
+    // Check Left Edge
     if (left < 0) {
       left = 0; // Stick to left edge
     }
 
-    // 3. Check Right Edge
+    // Check Right Edge
     if (left + popupWidth > totalBoardSize) {
       left = totalBoardSize - popupWidth; // Stick to right edge
     }
@@ -132,7 +129,7 @@ export const SOSBoard: React.FC<Props> = (props) => {
     <View style={styles.container}>
       <View style={[styles.gridContainer, { width: totalBoardSize, height: totalBoardSize }]}>
         
-        {/* 1. Grid Layer */}
+        {/* Grid Layer */}
         {grid.map((row, rIndex) => (
           <View key={rIndex} style={styles.row}>
             {row.map((cell, cIndex) => (
@@ -147,7 +144,7 @@ export const SOSBoard: React.FC<Props> = (props) => {
           </View>
         ))}
 
-        {/* 2. SVG Layer */}
+        {/* SVG Layer */}
         <View style={styles.absoluteFill} pointerEvents="none">
           <Svg height="100%" width="100%">
             {slashedLines.map((line) => (
@@ -187,13 +184,13 @@ export const SOSBoard: React.FC<Props> = (props) => {
           </Svg>
         </View>
 
-        {/* 3. Touch Overlay */}
+        {/* Touch Overlay */}
         <View 
           style={[styles.absoluteFill, { backgroundColor: 'transparent' }]}
           {...panResponder.panHandlers}
         />
 
-        {/* 4. Popup Layer */}
+        {/* Popup Layer */}
         {pendingCell && (
           <View style={[styles.popupContainer, getPopupStyle()]}>
             <TouchableOpacity onPress={() => onConfirmPlacement('S')} style={[styles.bubble, styles.bubbleS]}>
