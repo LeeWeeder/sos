@@ -11,8 +11,6 @@ interface Props {
 }
 
 export const SOSCell: React.FC<Props> = ({ value, isSelected, isPending, size }) => {
-  // We calculate a slightly smaller size for the inner visual tile
-  // This creates the "gap" without messing up the touch coordinate math
   const GAP = 4;
   const innerSize = size - GAP;
 
